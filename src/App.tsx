@@ -21,6 +21,19 @@ const App = () => {
     const nodeWidth = 278;
     const nodeHeight = 200;
 
+    const getGenderColor = (gender: "M" | "F" | "NB" | undefined) => {
+        switch (gender) {
+            case "M":
+                return "#bdebfd";
+            case "F":
+                return "#fbdde3";
+            case "NB":
+                return "#f5f0cd";
+            default:
+                return "white";
+        }
+    }
+
     const createNodesFromFamily = (family: FamilyMember[]) => {
         const nodes = [];
         for (const member of family) {
@@ -28,7 +41,8 @@ const App = () => {
                 id: member.id,
                 type: 'familyMemberNode',
                 data: {
-                    ...member
+                    ...member,
+                    genderColor: getGenderColor(member.gender)
                 },
                 position: {x: 0, y: 0},
             });
