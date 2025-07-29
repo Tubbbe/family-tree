@@ -26,14 +26,11 @@ const App = () => {
         for (const member of family) {
             nodes.push({
                 id: member.id,
+                type: 'familyMemberNode',
                 data: {
-                    label: <>
-                        <span>{member.givenName + " " + member.surname.toUpperCase()}</span>
-                        <br/>
-                        <span>{member.born}{member.death ? ` - ${member.death}` : ""}</span>
-                    </>
+                    ...member
                 },
-                position: {x: 0, y: 0}
+                position: {x: 0, y: 0},
             });
         }
 
@@ -152,7 +149,6 @@ const App = () => {
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 connectionLineType={ConnectionLineType.Straight}
-                colorMode={"dark"}
                 fitView
             >
                 <Panel position="top-right">
