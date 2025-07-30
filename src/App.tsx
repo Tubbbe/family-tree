@@ -16,11 +16,6 @@ const App = () => {
         familyMemberNode: FamilyMemberNode,
     };
 
-    const dagreGraph = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
-
-    const nodeWidth = 278;
-    const nodeHeight = 200;
-
     const getGenderColor = (gender: "M" | "F" | "NB" | undefined) => {
         switch (gender) {
             case "M":
@@ -71,11 +66,20 @@ const App = () => {
     const createEdgesFromFamily = (family: FamilyMember[]) => {
         const edges = [];
         for (const member of family) {
+            member.parentMembers = [];
+            member.childMembers = [];
+            member.spousesAndDivorced = [];
+
             if (member.parents && member.parents?.length > 0) {
                 for (const parent of member.parents) {
                     const edge = createEdgeIfNew(edges, parent, member.id);
                     if (edge !== null) {
                         edges.push(edge);
+                    }
+
+                    const parentMember = family.find((item) => item.id === parent);
+                    if (parentMember) {
+                        member.parentMembers && member.parentMembers.push(parentMember);
                     }
                 }
             }
@@ -86,6 +90,11 @@ const App = () => {
                     if (edge !== null) {
                         edges.push(edge);
                     }
+
+                    const parentMember = family.find((item) => item.id === parent);
+                    if (parentMember) {
+                        member.parentMembers && member.parentMembers.push(parentMember);
+                    }
                 }
             }
 
@@ -95,64 +104,119 @@ const App = () => {
                     if (edge !== null) {
                         edges.push(edge);
                     }
+
+                    const childMember = family.find((item) => item.id === child);
+                    if (childMember) {
+                        member.childMembers && member.childMembers.push(childMember);
+                    }
+                }
+            }
+
+            if (member.spouses && member.spouses.length > 0) {
+                for (const spouse of member.spouses) {
+                    const spouseMember = family.find((item) => item.id === spouse);
+                    if (spouseMember) {
+                        member.spousesAndDivorced && member.spousesAndDivorced.push(spouseMember);
+                    }
+                }
+            }
+
+            if (member.divorced && member.divorced.length > 0) {
+                for (const exSpouse of member.divorced) {
+                    const divorcedMember = family.find((item) => item.id === exSpouse);
+                    if (divorcedMember) {
+                        member.spousesAndDivorced && member.spousesAndDivorced.push(divorcedMember);
+                    }
                 }
             }
         }
 
-        return edges;
+        return { edges, family };
     }
 
-    const getLayoutedElements = (nodes: any, edges: any, direction = 'TB') => {
-        const isHorizontal = direction === 'LR';
-        dagreGraph.setGraph({rankdir: direction});
+    const setDepth = (member: FamilyMember, depth: number, alreadyProcessed: string[]) => {
+        if (!alreadyProcessed.includes(member.id)) {
+            member.depth = depth;
+            alreadyProcessed.push(member.id);
 
-        nodes.forEach((node: any) => {
-            dagreGraph.setNode(node.id, {width: nodeWidth, height: nodeHeight});
-        });
+            if (member.childMembers && member.childMembers?.length > 0) {
+                for (const child of member.childMembers) {
+                    setDepth(child, depth + 1, alreadyProcessed);
+                }
+            }
 
-        edges.forEach((edge: { source: dagre.Edge; target: string | { [key: string]: any; } | undefined; }) => {
-            dagreGraph.setEdge(edge.source, edge.target);
-        });
+            if (member.parentMembers && member.parentMembers?.length > 0) {
+                for (const parent of member.parentMembers) {
+                    setDepth(parent, depth - 1, alreadyProcessed);
+                }
+            }
 
-        dagre.layout(dagreGraph);
+            if (member.spousesAndDivorced && member.spousesAndDivorced?.length > 0) {
+                for (const spouseOrDivorced of member.spousesAndDivorced) {
+                    setDepth(spouseOrDivorced, depth, alreadyProcessed);
+                }
+            }
+        }
+    }
 
-        const newNodes = nodes.map((node: { id: string | dagre.Label; }) => {
-            const nodeWithPosition = dagreGraph.node(node.id);
-            return {
+    const setDepths = (family: FamilyMember[]) => {
+        const randomRoot: FamilyMember = family.filter((item) => item.parents && item.parents?.length > 0 && item.children && item.children?.length > 0)[0];
+
+        const alreadyProcessed: string[] = [];
+
+        setDepth(randomRoot, 0, alreadyProcessed);
+        const maxDepth = Math.max(...family.filter(item => !isNaN(item.depth)).map(item => item.depth));
+        const minDepth = Math.min(...family.filter(item => !isNaN(item.depth)).map(item => item.depth))
+
+        return maxDepth - minDepth;
+    }
+
+    const setXPosition = (previousMember: FamilyMember | null, member: FamilyMember, x: number, alreadyProcessed: string[]) => {
+        if (!alreadyProcessed.includes(member.id)) {
+            alreadyProcessed.push(member.id);
+
+            if (member.spousesAndDivorced && member.spousesAndDivorced?.length > 0) {
+                for (const spouseOrDivorced of member.spousesAndDivorced) {
+                    setXPosition(member, spouseOrDivorced, x, alreadyProcessed);
+                }
+            }
+
+            member.xPosition = x;
+        }
+    }
+
+    const setXPositions = (family: FamilyMember[]) => {
+        const roots: FamilyMember[] = family.filter((item) => item.parentMembers?.length === 0);
+
+        const alreadyProcessed: string[] = [];
+        for (const root of roots) {
+            setXPosition(null, root, 500, alreadyProcessed);
+        }
+    }
+
+    const changePositions = (nodes: any, edges: any) => {
+        const newNodes: any[] = [];
+
+        let x = 0;
+        for (const node of nodes) {
+            newNodes.push({
                 ...node,
-                targetPosition: isHorizontal ? 'left' : 'top',
-                sourcePosition: isHorizontal ? 'right' : 'bottom',
-                position: {
-                    x: nodeWithPosition.x - nodeWidth / 2,
-                    y: nodeWithPosition.y - nodeHeight / 2,
-                },
-            };
-        });
+                position: {x: x || 0, y: node.data.depth * 200 || 0}
+            });
+            x += 50;
+        }
 
-        return {nodes: newNodes, edges};
-    };
+        return { nodes: newNodes, edges };
+    }
 
-    const {nodes: layoutedNodes, edges: layoutedEdges} = getLayoutedElements(
-        createNodesFromFamily(family),
-        createEdgesFromFamily(family)
-    );
+    const { edges: createdEdges, family: familyMembers } = createEdgesFromFamily(family);
+    setDepths(familyMembers);
+    setXPositions(familyMembers);
+    console.log(familyMembers);
+    const { nodes: calculatedNodes, edges: calculatedEdges } = changePositions(createNodesFromFamily(familyMembers), createdEdges);
 
-    const [nodes, setNodes, onNodesChange] = useNodesState(layoutedNodes);
-    const [edges, setEdges, onEdgesChange] = useEdgesState(layoutedEdges);
-
-    const onLayout = useCallback(
-        (direction: string | undefined) => {
-            const {nodes: layoutedNodes, edges: layoutedEdges} = getLayoutedElements(
-                nodes,
-                edges,
-                direction,
-            );
-
-            setNodes([...layoutedNodes]);
-            setEdges([...layoutedEdges]);
-        },
-        [nodes, edges],
-    );
+    const [nodes, setNodes, onNodesChange] = useNodesState(calculatedNodes);
+    const [edges, setEdges, onEdgesChange] = useEdgesState(calculatedEdges);
 
     return (
         <div style={{width: "100vw", height: "100vw"}}>
@@ -165,10 +229,6 @@ const App = () => {
                 connectionLineType={ConnectionLineType.Straight}
                 fitView
             >
-                <Panel position="top-right">
-                    <Button text outlined severity="secondary" label="Vertical layout" onClick={() => onLayout('TB')} />
-                    <Button text outlined severity="secondary" label="Horizontal layout" onClick={() => onLayout('LR')} />
-                </Panel>
                 <Background/>
             </ReactFlow>
         </div>

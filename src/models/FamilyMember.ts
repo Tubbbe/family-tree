@@ -13,4 +13,11 @@ export interface FamilyMember {
     children: string[] | undefined;
     spouses: string[] | undefined;
     divorced: string[] | undefined;
+
+    // Technical
+    parentMembers: FamilyMember[] | undefined;
+    childMembers: FamilyMember[] | undefined;
+    spousesAndDivorced: FamilyMember[] | undefined;
+    depth: number;
+    xPosition: number;
 }
