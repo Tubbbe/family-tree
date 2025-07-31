@@ -8,6 +8,8 @@ export const FamilyMember = styled.div<{ $background?: string; }>`
     border: 1px #777 solid;
     border-radius: 10px;
     background-color: ${props => props.$background || "white"};
+    width: 250px;
+    height: 100px;
 `;
 
 export const FamilyMemberContent = styled.div`

@@ -20,4 +20,5 @@ export interface FamilyMember {
     spousesAndDivorced: FamilyMember[] | undefined;
     depth: number;
     xPosition: number;
+    zoneId: string;
 }

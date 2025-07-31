@@ -6,6 +6,7 @@ export function FamilyMemberNode(props: any) {
         <FamilyMember $background={props.data.genderColor}>
             <Handle type="target" position={Position.Top} />
             <FamilyMemberContent>
+                <p>{props.data.zoneId} / {props.data.xPosition}</p>
                 {props.data.nationality ? <FamilyMemberFlag src={`https://flagsapi.com/${props.data.nationality}/shiny/64.png`}/> : null}
                 <FamilyMemberName>{props.data.givenName + (props.data.surname ? " " + props.data.surname.toUpperCase() : "")}</FamilyMemberName>
                 <FamilyMemberBirthDeath>{props.data.born ? props.data.born : "????"}{props.data.death ? ` - ${props.data.death}` : ""}</FamilyMemberBirthDeath>

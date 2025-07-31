@@ -10,6 +10,7 @@ import {FamilyMemberNode} from "./components/FamilyMember/FamilyMemberNode";
 import {Button} from "primereact/button";
 
 const App = () => {
+    const NODE_WIDTH = 260;
     const family: FamilyMember[] = familyJson.map(item => item as unknown as FamilyMember);
 
     const nodeTypes = {
@@ -160,7 +161,7 @@ const App = () => {
     }
 
     const setDepths = (family: FamilyMember[]) => {
-        const randomRoot: FamilyMember = family.filter((item) => item.parents && item.parents?.length > 0 && item.children && item.children?.length > 0)[0];
+        const randomRoot: FamilyMember = family.filter((item) => item.parentMembers && item.parentMembers?.length > 0 && item.childMembers && item.childMembers?.length > 0)[0];
 
         const alreadyProcessed: string[] = [];
 
@@ -171,39 +172,112 @@ const App = () => {
         return maxDepth - minDepth;
     }
 
-    const setXPosition = (previousMember: FamilyMember | null, member: FamilyMember, x: number, alreadyProcessed: string[]) => {
+    const setXPosition = (member: FamilyMember, alreadyProcessed: string[], zoneId: string, zonesAndCount: any[]) => {
         if (!alreadyProcessed.includes(member.id)) {
             alreadyProcessed.push(member.id);
 
-            if (member.spousesAndDivorced && member.spousesAndDivorced?.length > 0) {
-                for (const spouseOrDivorced of member.spousesAndDivorced) {
-                    setXPosition(member, spouseOrDivorced, x, alreadyProcessed);
+            if (!zonesAndCount.map((item: any) => item.zoneId).includes(zoneId)) {
+                zonesAndCount.push({zoneId: zoneId, count: 1, width: NODE_WIDTH});
+            } else {
+                zonesAndCount.find((item: any) => item.zoneId === zoneId).count++;
+                zonesAndCount.find((item: any) => item.zoneId === zoneId).width += NODE_WIDTH;
+            }
+
+            if (member.childMembers && member.childMembers?.length > 0) {
+                let zoneIdChild = 0;
+                for (const child of member.childMembers) {
+                    setXPosition(child, alreadyProcessed, zoneId + "-" + zoneIdChild, zonesAndCount)
+                    zoneIdChild++;
                 }
             }
 
-            member.xPosition = x;
+            if (member.spousesAndDivorced && member.spousesAndDivorced?.length > 0) {
+                let zoneIdSpouse = 0;
+                for (const spouseOrDivorced of member.spousesAndDivorced) {
+                    setXPosition(spouseOrDivorced, alreadyProcessed, zoneId + "_" + zoneIdSpouse, zonesAndCount);
+                    zoneIdSpouse++;
+                }
+            }
+
+            member.zoneId = zoneId;
         }
     }
 
     const setXPositions = (family: FamilyMember[]) => {
-        const roots: FamilyMember[] = family.filter((item) => item.parentMembers?.length === 0);
+        const roots: FamilyMember[] = family.filter((item) => item.parentMembers?.length === 0 && (!item.spousesAndDivorced || item.spousesAndDivorced.filter((item2) => !item2.parentMembers || item2.parentMembers?.length > 0).length === 0));
 
+        const zonesAndCount: any[] = [];
+        let zoneId = 0;
         const alreadyProcessed: string[] = [];
         for (const root of roots) {
-            setXPosition(null, root, 500, alreadyProcessed);
+            setXPosition(root, alreadyProcessed, zoneId.toString(), zonesAndCount);
+            zoneId++;
+        }
+
+        const sortedZonesAndCount = zonesAndCount.sort((a, b) => {
+            if (a.levelZone === b.levelZone) {
+                const subZonesA: string[] = a.zoneId.split('-');
+                const subZonesB: string[] = b.zoneId.split('-');
+
+                for (let i = 0; i < subZonesA.length; i++) {
+                    if (subZonesA[i].includes("_") || subZonesB[i].includes("_")) {
+                        const splittedSubZoneA = subZonesA[i].split('_');
+                        const splittedSubZoneB = subZonesB[i].split('_');
+
+                        if (splittedSubZoneA[0] === splittedSubZoneB[0]) {
+                            if (splittedSubZoneA.length === splittedSubZoneB.length) {
+                                return Number(splittedSubZoneA[1]) - Number(splittedSubZoneB[1]);
+                            } else if (subZonesA.length !== subZonesB.length) {
+                                return subZonesA.length - subZonesB.length;
+                            } else {
+                                return splittedSubZoneA.length - splittedSubZoneB.length;
+                            }
+                        }
+
+                        return Number(splittedSubZoneA[0]) - Number(splittedSubZoneB[0]);
+                    } else if (subZonesA[i] !== subZonesB[i]) {
+                        return Number(subZonesA[i]) - Number(subZonesB[i]);
+                    }
+                }
+            }
+
+            return a.levelZone - b.levelZone;
+        });
+
+
+        console.log("zones", sortedZonesAndCount);
+        console.log("family", family);
+
+        let currentLevelZone = 0;
+        let previousCurrentXPosition = 0;
+        let currentXPosition = 0;
+        for (const zoneAndCountItem of sortedZonesAndCount) {
+            if (zoneAndCountItem.levelZone !== currentLevelZone) {
+                currentXPosition = 0;
+            }
+
+            currentLevelZone = zoneAndCountItem.levelZone;
+            const zoneNodes: FamilyMember[] = family.filter((item) => item.zoneId === zoneAndCountItem.zoneId);
+            for (const zoneNode of zoneNodes) {
+                if (zoneNode.zoneId.includes('_')) {
+                    zoneNode.xPosition = previousCurrentXPosition + zoneAndCountItem.width;
+                } else {
+                    zoneNode.xPosition = currentXPosition;
+                    previousCurrentXPosition = currentXPosition;
+                    currentXPosition += zoneAndCountItem.width;
+                }
+            }
         }
     }
 
     const changePositions = (nodes: any, edges: any) => {
         const newNodes: any[] = [];
 
-        let x = 0;
         for (const node of nodes) {
             newNodes.push({
                 ...node,
-                position: {x: x || 0, y: node.data.depth * 200 || 0}
+                position: {x: node.data.xPosition || 0, y: node.data.depth * NODE_WIDTH || 0}
             });
-            x += 50;
         }
 
         return { nodes: newNodes, edges };
